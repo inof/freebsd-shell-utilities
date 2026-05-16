@@ -2,7 +2,7 @@ This repository is about "utils.sh", a collection of functions that is to be use
 
 **NOTE:** This is *not* intended to be used by Linux. It does *not* work with bash.
 
-I have just committed the current state of the file. The documentation is integrated within the file as comments. I plan to write a separate documentation as soon as I have some time. I will also upload a few scripts that make use of utils.sh and that server as examples.
+I have just committed the current state of the file. The documentation is integrated within the file as comments. I plan to write a separate documentation as soon as I have some time. I will also upload a few scripts that make use of utils.sh and that serve as examples.
 
 The following is an excerpt from the head of the file:
 
@@ -21,3 +21,5 @@ The following is an excerpt from the head of the file:
     #                long-running jobs, handling of X11 resources and X11 cut
     #                buffers (so a shell script can let the user mark some
     #                text with the mouse), and more.
+
+**IMPORTANT:** This is work in progress. The API may not be stable. In particular, I plan to make small changes to the `array`, `dict` and `Set` fetaures in order to remove a few rough edges.

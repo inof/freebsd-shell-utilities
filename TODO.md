@@ -1,5 +1,9 @@
 This is a list of to-do items, in no particular order.
 
+* More / better documentation.
+    * Currently, all documentation is contained as comments wihtin `utils.sh` itself. Consider creating a separate doc file.
+    * The documentation of some features is somewhat terse, in particular `array`, `dict` and `Set`. This needs to be improved.
+
 * I'm not happy with the syntax of the `assert` function. In particular, the double dash `--` is used as a separator, but this character sequence may occur as an argument (after variable expansion) on the left side, causing breakage.
 
   Typical example: A script tries to validate that the first argument is an existing file:

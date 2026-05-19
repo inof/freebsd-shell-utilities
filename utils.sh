@@ -48,8 +48,11 @@
 #	match		startswith	endswith	contains
 #	not		eq		neq
 #	have		no		empty		nonempty
+#
 #	isdigit		isalpha		isalnum		isupper		islower
-#       isnatural	isident		in_range	zeropad
+#	isident
+#
+#	isnatural	isinteger	ispositive	in_range	zeropad
 #
 #	exists		isfile		isdir		islink		isatty
 #	isreadable	newer		older		same_file
@@ -66,7 +69,7 @@
 #	argv_quote	argv_doublequote
 #	record		array		Set		dict
 #	quote_args	quote_regex	add_path	std_getopts
-#       enumerate	repeat
+#	enumerate	repeat
 #
 #	ATTR_RED	ATTR_GREEN	ATTR_YELLOW	ATTR_BLUE	ATTR_PURPLE
 #	ATTR_CYAN	ATTR_GREY	ATTR_ORANGE	ATTR_OFF
@@ -81,10 +84,10 @@
 #
 #	progress_start	progress_value	HMS_to_S	S_to_HMS	th_sep
 #
-#	get_resource	set_resource
-#	add_resource_string		remove_resource_string
+#	get_resource		set_resource
+#	add_resource_string	remove_resource_string
 #
-#	get_selection
+#	get_selection	cp_stat
 #
 #	round_down	round_up	within_percent
 #
@@ -434,20 +437,24 @@ isalnum () { ! match "${1-}" '""|*[!A-Za-z0-9]*'; }
 isupper () { ! match "${1-}" '""|*[!A-Z]*'; }
 islower () { ! match "${1-}" '""|*[!a-z]*'; }
 
-#   Natural decimal number >= 0.
-isnatural () { ! match "${1-}" '""|*[!0-9]*|0?*'; }
-
 #   Valid identifier (e.g. valid variable name):  Returns 0 (true)
 #   if the string is non-empty and consists only of ASCII letters,
 #   digits and underscores, and the first character is not a digit.
-isident () { ! match "$1" '""|*[!A-Za-z0-9_]*|[0-9]*'; }
+isident () { ! match "${1-}" '""|*[!A-Za-z0-9_]*|[0-9]*'; }
+
+#   Natural decimal number >= 0.
+isnatural () { ! match "${1-}" '""|*[!0-9]*|0?*'; }
+
+#   An integer number, optionally signed (+ or -).
+isinteger () { isnatural "${1#[-+]}"; }
+
+#   Positive integer number >= 1.
+ispositive () { ! match "${1-}" '""|*[!0-9]*|0*'; }
 
 #   Usage:  in_range $VALUE $MIN $MAX
 #   Returns 0 (true) if $VALUE is a valid integer number within the
-#   range [$MIN...$MAX] (inclusive).  $VALUE may be negative.
-in_range () {
-	nonempty "${1-}" && isnatural "${1#-}" && $(( $1 >= $2 && $1 <= $3 ))
-}
+#   range [$MIN...$MAX] (inclusive).  All numbers may be negative.
+in_range () { isinteger "${1-}" && $(( $1 >= $2 && $1 <= $3 )); }
 
 #   Usage:  zeropad <VARNAME> <WIDTH>
 #
@@ -472,13 +479,13 @@ zeropad ()
 #       if not match "$FOO" 'pattern'; then ...
 #       if eq "$SOME_VAR" "foo"; then ...
 #       if empty "$SOME_VAR"; then ...
-#       if exists "$SOME_FILE"; then ...
+#       if no "$RESULT"; then ...
 #
 
 not () { "$@" && return 1 || return 0 ; }
 
-eq ()       { test "x$1"  = "x$2" || return 1 ; }
-neq ()      { test "x$1" != "x$2" || return 1 ; }
+eq ()       { test "x${1-}"  = "x${2-}" || return 1 ; }
+neq ()      { test "x${1-}" != "x${2-}" || return 1 ; }
 have ()     { test -n "${1-}" || return 1 ; }
 nonempty () { test -n "${1-}" || return 1 ; }
 no ()       { test -z "${1-}" || return 1 ; }
@@ -1772,7 +1779,7 @@ array ()
 			setvar ARGC_$NAME $INDEX
 			return
 			;;
-		indices)
+		indices|keys)
 			range $(argv_count $NAME)
 			;;
 		iterate|enumerate)
@@ -2132,6 +2139,7 @@ Set ()
 #   dict <NAME> count			# Echoes number of elements.
 #   dict <NAME> empty			# Return code 0 (true) or 1 (false).
 #   dict <NAME> indices		        # Returns the indices (one per line).
+#   dict <NAME> keys		        # ditto
 #   dict <NAME> contains <INDEX>	# Return code 0 (true) or 1 (false).
 #   dict <NAME> remove <INDEX> ...	# Remove one or more elements.
 #   dict <NAME> pop <KNAME> <VNAME>	# Pop 1st pair & assign to variables.
@@ -2335,12 +2343,22 @@ dict ()
 		quote)
 			dict $NAME iterate quote_args
 			;;
-		indices)
+		indices|keys)
 			eval REST='"${_DICT_'$NAME'-}"'
 			REST="${REST#$ESEP}"
 			while have "$REST"; do
 				MID="${REST%%$ESEP*}"
 				printf '%s\n' "${MID%%$VSEP*}"
+				REST="${REST#*$ESEP}"
+			done
+			return
+			;;
+		values)
+			eval REST='"${_DICT_'$NAME'-}"'
+			REST="${REST#$ESEP}"
+			while have "$REST"; do
+				MID="${REST%%$ESEP*}"
+				printf '%s\n' "${MID#*$VSEP}"
 				REST="${REST#*$ESEP}"
 			done
 			return
@@ -3331,7 +3349,7 @@ _attr_echo ()
 #   <FUNC> -c [-dfr] [--] [<FILE> ...] [>&2]
 #
 #   In the first synopsis, the function behaves like echo(1), including
-#   the options -e or -n that are passed as-is to echo(1).
+#   the options -e or -n that are passed as-is to echo (sh(1) builtin).
 #   In the second synopsis (using -c), the function behaves like cat(1).
 #   Attributes or colors are only used if the output stream is a TTY,
 #   unless the -f option (force) is used.
@@ -3342,7 +3360,7 @@ _attr_echo ()
 #      -c   Behave like cat(1) rather than echo(1), i.e. print lines
 #           from the specified file(s) using the respective color, or
 #           lines from stdin if no files are specified.
-#      -e   Passed to echo(1): support escape codes.  Note that this is
+#      -e   Passed to echo: support escape codes.  Note that this is
 #           not portable.  Using the $'...' syntax might be better.
 #      -f   Enforce bold even if output is not to a terminal.  This is
 #           useful when used in backticks like this:
@@ -3351,7 +3369,7 @@ _attr_echo ()
 #               color "You must <B>not<O> do that!"
 #      -n   Passed to echo(1): suppress newline.
 #      -r   Use reverse output, i.e. swap foreground and background
-#           colors, in addition to bold.
+#           colors.
 #
 
 bold ()      { _attr_echo "$BOLD_ON" "$@"; }
@@ -3834,6 +3852,56 @@ get_selection ()
 			fi
 			printf '%s\n' "$BUF"
 			return
+		fi
+	done
+}
+
+#
+#   cp_stat <SOURCE> <TARGET> [...]
+#
+#   Copies the file status from <SOURCE> to one or more <TARGET>s:
+#    - atime and mtime
+#    - permissions (set-id bits are NOT copied)
+#    - owner (only if run as root)
+#    - group (only if run as root, or the user is a member of the group)
+#
+#   If <TARGET> does not exist yet, it is created with size 0.
+#   If <TARGET> already exists, its contents are not modified.
+#
+
+cp_stat ()
+{
+	local SOURCE="$1"
+	shift
+	local TARGET USR GRP PERM
+
+	#   Unfortunately, FreeBSD's /bin/sh does not support $UID or $EUID.
+	#   In order to save id(1) calls, we cache the result in a global
+	#   variable.
+	if no "${__MY_EUID:-}"; then
+		__MY_EUID=$(id -u)
+	fi
+
+	if $(( __MY_EUID == 0 )); then
+		USR=$(getowner "$SOURCE")
+	fi
+	GRP=$(getgroup "$SOURCE")
+	PERM=$(getperm "$SOURCE")
+	PERM=0${PERM#?}		# Remove set-id bits.
+
+	for TARGET in "$@"; do
+		#   Copy atime and mtime:
+		touch -r "$SOURCE" -- "$TARGET"
+		#   Copy permissions:
+		chmod $PERM "$TARGET"
+		if $(( __MY_EUID == 0 )); then
+			#    Copy owner and group:
+			chown "${USR}:${GRP}" "$TARGET"
+		elif neq "$GRP" "$(getgroup "$TARGET")"; then
+			#    Copy group if possible:
+			if ! chgrp -- "$GRP" "$TARGET" 2>/dev/null; then
+				Warn "Could not set group \"$GRP\": $TARGET"
+			fi
 		fi
 	done
 }
